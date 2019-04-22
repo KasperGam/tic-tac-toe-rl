@@ -56,6 +56,23 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * Reward given for the current action
    */
   private int reward = 0;
+  
+  /**
+   * Policy for the agent embedded in the environment. <br>
+   * 0 employs a strategy of playing the first empty cell with an "O"<br>
+   *
+   * 1 employs a strategy of playing a completely random empty cell with an "O"<br>
+   *
+   * 2 employ a strategy that randomly places "O" except when there are opportunities to block an "X" three-in-a row<br>
+   *
+   * 3 employs a strategy that randomly places "O" except when
+   * there are opportunities to play third "O" in a row, or to block an "X" three-in-a row<br>
+   *
+   * 4 employs a strategy that prefers center and random corner placement,
+   * except when there are opportunities to play a third "O" in a row, or block an "X" three-in-a row
+   *
+   */
+  private int agentPolicy = 4;
 
   /**
    * Most recent state, to be returned by currentObservation() method
@@ -68,14 +85,60 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * Mark that the player embedded in the environment plays
    */
   private char envPlayerMark = TicTacToeState.O_MARK;
+  
+  public char getEnvironmentPlayerMark() {
+	  return envPlayerMark;
+  }
 
   /**
    * Mark that the opposing player plays
    */
   private char opposingPlayerMark = TicTacToeState.X_MARK;
+  
+  public char getAgentPlayerMark() {
+	  return opposingPlayerMark;
+  }
 
   public TicTacToeEnv() {
     resetEnvironment();
+  }
+  
+  /**
+   * Sets the policy for the agent embedded in the environment. 
+   * @param policy Policy for the agent. Specified as an int:<br>
+   *
+   *
+   * 0 employs a strategy of playing the first empty cell with an "O"<br>
+   *
+   * 1 employs a strategy of playing a completely random empty cell with an "O"<br>
+   *
+   * 2 employ a strategy that randomly places "O" except when there are opportunities to block an "X" three-in-a row<br>
+   *
+   * 3 employs a strategy that randomly places "O" except when
+   * there are opportunities to play third "O" in a row, or to block an "X" three-in-a row<br>
+   *
+   * 4 employs a strategy that prefers center and random corner placement,
+   * except when there are opportunities to play a third "O" in a row, or block an "X" three-in-a row<br>
+   *
+   */
+  public void setAgentPolicy(int policy) {
+	  this.agentPolicy = policy;
+  }
+  
+  public int getAgentPolicy() {
+	  return this.agentPolicy;
+  }
+  
+  public void setState(TicTacToeState state) {
+	  gameBoard = new StringBuffer(state.gameBoard);
+	  gameStatus = evalGameStatus();
+
+	  terminated = 
+			  gameStatus.equals(TicTacToeState.GAME_STATUS_O_WON) || 
+			  gameStatus.equals(TicTacToeState.GAME_STATUS_X_WON) || 
+			  gameStatus.equals(TicTacToeState.GAME_STATUS_CATS_GAME);
+	  
+	  currentObservationState = new TicTacToeState(gameBoard.toString(), gameStatus);
   }
 
   @Override
@@ -159,6 +222,25 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
       reward = MOVE_REWARD;
       terminated = false;
 
+      switch(agentPolicy) {
+      case 0:
+    	  playFirstEmptyCell();
+    	  break;
+      case 1:
+    	  playRandomCell();
+    	  break;
+      case 2:
+    	  blockOrPlayRandom();
+    	  break;
+      case 3:
+    	  winOrblockOrPlayRandom();
+    	  break;
+      case 4:
+    	  winOrBlockOrCenterOrRandomCornerOrPlayRandom();
+    	  break;
+      default:
+    	  winOrBlockOrCenterOrRandomCornerOrPlayRandom();
+      }
       // Uncomment to employ a strategy of playing the first empty cell with an "O"
       //playFirstEmptyCell();
 
@@ -174,7 +256,7 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
 
       // Uncomment to employ a strategy that prefers center and random corner placement,
       // except when there are opportunities to play a third "O" in a row, or block an "X" three-in-a row
-      winOrBlockOrCenterOrRandomCornerOrPlayRandom();
+      //winOrBlockOrCenterOrRandomCornerOrPlayRandom();
 
       gameStatus = evalGameStatus();  // Evaluate game status after opposing player has responded, and update terminated state
       if (gameStatus.toCharArray()[0] == envPlayerMark) {
@@ -212,6 +294,23 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
   @Override
   public boolean isInTerminalState() {
     return terminated;
+  }
+  
+  public double rewardForStatus(String status) {
+	  double rewardVal = 0;
+	  if (status.toCharArray()[0] == envPlayerMark) {
+		 rewardVal = LOSE_REWARD;
+	 } else if (status.toCharArray()[0] == opposingPlayerMark) {
+		 rewardVal = WIN_REWARD;
+	 } else {
+		 rewardVal = MOVE_REWARD;
+	 }
+
+	 return rewardVal;
+  }
+  
+  public boolean isTerminalStatus(String status) {
+	  return !status.equals(TicTacToeState.GAME_STATUS_IN_PROGRESS);
   }
 
   /**
@@ -257,7 +356,7 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
         (gameBoard.charAt(2) == TicTacToeState.X_MARK && gameBoard.charAt(4) == TicTacToeState.X_MARK && gameBoard.charAt(6) == TicTacToeState.X_MARK)) {
       gameStatus = TicTacToeState.GAME_STATUS_X_WON;
       //System.out.println("X won");
-      System.out.print(envPlayerMark == TicTacToeState.O_MARK ? "X" : "x");
+      //System.out.print(envPlayerMark == TicTacToeState.O_MARK ? "X" : "x");
     }
     else if ((gameBoard.charAt(0) == TicTacToeState.O_MARK && gameBoard.charAt(1) == TicTacToeState.O_MARK && gameBoard.charAt(2) == TicTacToeState.O_MARK) ||
         (gameBoard.charAt(3) == TicTacToeState.O_MARK && gameBoard.charAt(4) == TicTacToeState.O_MARK && gameBoard.charAt(5) == TicTacToeState.O_MARK) ||
@@ -269,12 +368,12 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
         (gameBoard.charAt(2) == TicTacToeState.O_MARK && gameBoard.charAt(4) == TicTacToeState.O_MARK && gameBoard.charAt(6) == TicTacToeState.O_MARK)) {
       gameStatus = TicTacToeState.GAME_STATUS_O_WON;
       //System.out.println("O won");
-      System.out.print(envPlayerMark == TicTacToeState.X_MARK ? "O" : "o");
+      //System.out.print(envPlayerMark == TicTacToeState.X_MARK ? "O" : "o");
     }
 
     if (gameStatus.equals(TicTacToeState.GAME_STATUS_CATS_GAME)) {
       //System.out.println("Cat's game");
-      System.out.print(".");
+      //System.out.print(".");
     }
     return gameStatus;
   }
@@ -290,21 +389,17 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * Simple strategy that plays a completely random empty cell
    */
   private void playRandomCell() {
-    boolean played = false;
-    while (!played) {
-      int proposedCellIndex = (int)(Math.random() * TicTacToeState.NUM_CELLS);
-      if (gameBoard.charAt(proposedCellIndex) == TicTacToeState.EMPTY) {
-        gameBoard.setCharAt(proposedCellIndex, envPlayerMark);
-        played = true;
-      }
-    }
+	int[] emptyCells = getEmptyGameboardIndices(false);
+
+	int selectedIndex = (int)(Math.random() * emptyCells.length);
+	gameBoard.setCharAt(emptyCells[selectedIndex], envPlayerMark);
   }
 
   /**
    * Strategy that randomly places its mark except when there are opportunities to block a three-in-a row
    */
   private void blockOrPlayRandom() {
-    int cellIndexToPlay = evalGameboardForBlock();
+    int cellIndexToPlay = evalGameboardForBlock(opposingPlayerMark);
     if (cellIndexToPlay != -1) {
       gameBoard.setCharAt(cellIndexToPlay, envPlayerMark);
     }
@@ -318,12 +413,12 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * play third mark in a row, or to block a three-in-a row
    */
   private void winOrblockOrPlayRandom() {
-    int cellIndexToPlay = evalGameboardForWin();
+    int cellIndexToPlay = evalGameboardForWin(envPlayerMark);
     if (cellIndexToPlay != -1) {
       gameBoard.setCharAt(cellIndexToPlay, envPlayerMark);
       return;
     }
-    cellIndexToPlay = evalGameboardForBlock();
+    cellIndexToPlay = evalGameboardForBlock(opposingPlayerMark);
     if (cellIndexToPlay != -1) {
       gameBoard.setCharAt(cellIndexToPlay, envPlayerMark);
     }
@@ -338,12 +433,12 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * TODO: Refactor to remove repeating code
    */
   private void winOrBlockOrCenterOrRandomCornerOrPlayRandom() {
-    int cellIndexToPlay = evalGameboardForWin();
+    int cellIndexToPlay = evalGameboardForWin(envPlayerMark);
     if (cellIndexToPlay != -1) {
       gameBoard.setCharAt(cellIndexToPlay, envPlayerMark);
       return;
     }
-    cellIndexToPlay = evalGameboardForBlock();
+    cellIndexToPlay = evalGameboardForBlock(opposingPlayerMark);
     if (cellIndexToPlay != -1) {
       gameBoard.setCharAt(cellIndexToPlay, envPlayerMark);
     }
@@ -358,20 +453,42 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    * placements, in case none of the corners or center cell is empty.
    */
   private void playRandomCornerOrCenterOrRandomCell() {
-    boolean played = false;
-    int counter = 0;
-    while (!played && counter < 100) {
-      // Randomly choose 0, 2, 4, 6, 8 (corners or center)
-      int proposedCellIndex = (int)(Math.random() * 5) * 2;
-      if (gameBoard.charAt(proposedCellIndex) == TicTacToeState.EMPTY) {
-        gameBoard.setCharAt(proposedCellIndex, envPlayerMark);
-        played = true;
-      }
-      counter++;
+
+    int[] cornersAndCenter = getEmptyGameboardIndices(true);
+    if(cornersAndCenter.length > 0) {
+    	int chosenIndex = (int)(Math.random() * cornersAndCenter.length);
+    	gameBoard.setCharAt(cornersAndCenter[chosenIndex], envPlayerMark);
+    } else {
+    	playRandomCell();
     }
-    if (!played) {
-      playRandomCell();
-    }
+  }
+  
+  /**
+   * Gets all empty cells in the gameboard. 
+   * @param onlyIncludeCenterAndCorners A boolean indicating to return all cells (false) or 
+   * just the corner and center cells (indices 0, 2, 4, 6, 8). 
+   * @return Returns an int array containing only valid, empty indices in the gameboard. 
+   */
+  private int[] getEmptyGameboardIndices(boolean onlyIncludeCenterAndCorners) {
+	  List<Integer> indicies = new ArrayList<Integer>();
+	  for(int i=0; i<TicTacToeState.NUM_CELLS; i++) {
+		  if(gameBoard.charAt(i) == TicTacToeState.EMPTY) {
+			  if (onlyIncludeCenterAndCorners) {
+				  if (i % 2 == 0) {
+					  indicies.add(i);
+				  }
+			  } else {
+				  indicies.add(i);
+			  }
+		  }
+	  }
+
+	  int[] retVal = new int[indicies.size()];
+	  for(int i=0; i<indicies.size(); i++) {
+		  retVal[i] = indicies.get(i);
+	  }
+	  
+	  return retVal;
   }
 
   /**
@@ -380,78 +497,198 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    *
    * @return Zero-based index of cell that would block, or -1 if no cells apply
    */
-  private int evalGameboardForBlock() {
+  private int evalGameboardForBlock(char markToBlock) {
     int blockingPlay = -1;
-    if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(1) == opposingPlayerMark && gameBoard.charAt(2) == TicTacToeState.EMPTY) {
+    /**
+     * XXI
+     * ???
+     * ???
+     */
+    if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(1) == markToBlock && gameBoard.charAt(2) == TicTacToeState.EMPTY) {
       blockingPlay = 2;
     }
-    else if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(2) == opposingPlayerMark) {
+    /**
+     * XIX
+     * ???
+     * ???
+     */
+    else if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(2) == markToBlock) {
       blockingPlay = 1;
     }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(1) == opposingPlayerMark && gameBoard.charAt(2) == opposingPlayerMark) {
+    /**
+     * IXX
+     * ???
+     * ???
+     */
+    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(1) == markToBlock && gameBoard.charAt(2) == markToBlock) {
       blockingPlay = 0;
     }
-    else if (gameBoard.charAt(3) == opposingPlayerMark && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(5) == TicTacToeState.EMPTY) {
+    /**
+     * ???
+     * XXI
+     * ???
+     */
+    else if (gameBoard.charAt(3) == markToBlock && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(5) == TicTacToeState.EMPTY) {
       blockingPlay = 5;
     }
-    else if (gameBoard.charAt(3) == opposingPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(5) == opposingPlayerMark) {
+    /**
+     * ???
+     * XIX
+     * ???
+     */
+    else if (gameBoard.charAt(3) == markToBlock && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(5) == markToBlock) {
       blockingPlay = 4;
     }
-    else if (gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(5) == opposingPlayerMark) {
+    /**
+     * ???
+     * IXX
+     * ???
+     */
+    else if (gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(5) == markToBlock) {
       blockingPlay = 3;
     }
-    else if (gameBoard.charAt(6) == opposingPlayerMark && gameBoard.charAt(7) == opposingPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
+    /**
+     * ???
+     * ???
+     * XXI
+     */
+    else if (gameBoard.charAt(6) == markToBlock && gameBoard.charAt(7) == markToBlock && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
       blockingPlay = 8;
     }
-    else if (gameBoard.charAt(6) == opposingPlayerMark && gameBoard.charAt(7) == TicTacToeState.EMPTY && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * ???
+     * ???
+     * XIX
+     */
+    else if (gameBoard.charAt(6) == markToBlock && gameBoard.charAt(7) == TicTacToeState.EMPTY && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 7;
     }
-    else if (gameBoard.charAt(6) == TicTacToeState.EMPTY && gameBoard.charAt(7) == opposingPlayerMark && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * ???
+     * ???
+     * IXX
+     */
+    else if (gameBoard.charAt(6) == TicTacToeState.EMPTY && gameBoard.charAt(7) == markToBlock && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 6;
     }
-    else if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(3) == opposingPlayerMark && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
+    /**
+     * X??
+     * X??
+     * I??
+     */
+    else if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(3) == markToBlock && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
       blockingPlay = 6;
     }
-    else if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(6) == opposingPlayerMark) {
+    /**
+     * X??
+     * I??
+     * X??
+     */
+    else if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(6) == markToBlock) {
       blockingPlay = 3;
     }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(3) == opposingPlayerMark && gameBoard.charAt(6) == opposingPlayerMark) {
+    /**
+     * I??
+     * X??
+     * X??
+     */
+    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(3) == markToBlock && gameBoard.charAt(6) == markToBlock) {
       blockingPlay = 0;
     }
-    else if (gameBoard.charAt(1) == opposingPlayerMark && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(7) == TicTacToeState.EMPTY) {
+    /**
+     * ?X?
+     * ?X?
+     * ?I?
+     */
+    else if (gameBoard.charAt(1) == markToBlock && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(7) == TicTacToeState.EMPTY) {
       blockingPlay = 7;
     }
-    else if (gameBoard.charAt(1) == opposingPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(7) == opposingPlayerMark) {
+    /**
+     * ?X?
+     * ?I?
+     * ?X?
+     */
+    else if (gameBoard.charAt(1) == markToBlock && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(7) == markToBlock) {
       blockingPlay = 4;
     }
-    else if (gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(7) == opposingPlayerMark) {
+    /**
+     * ?I?
+     * ?X?
+     * ?X?
+     */
+    else if (gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(7) == markToBlock) {
       blockingPlay = 1;
     }
-    else if (gameBoard.charAt(2) == opposingPlayerMark && gameBoard.charAt(5) == opposingPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
+    /**
+     * ??X
+     * ??X
+     * ??I
+     */
+    else if (gameBoard.charAt(2) == markToBlock && gameBoard.charAt(5) == markToBlock && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
       blockingPlay = 8;
     }
-    else if (gameBoard.charAt(2) == opposingPlayerMark && gameBoard.charAt(5) == TicTacToeState.EMPTY && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * ??X
+     * ??I
+     * ??X
+     */
+    else if (gameBoard.charAt(2) == markToBlock && gameBoard.charAt(5) == TicTacToeState.EMPTY && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 5;
     }
-    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(5) == opposingPlayerMark && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * ??I
+     * ??X
+     * ??X
+     */
+    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(5) == markToBlock && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 2;
     }
-    else if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
+    /**
+     * X??
+     * ?X?
+     * ??I
+     */
+    else if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
       blockingPlay = 8;
     }
-    else if (gameBoard.charAt(0) == opposingPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * X??
+     * ?I?
+     * ??X
+     */
+    else if (gameBoard.charAt(0) == markToBlock && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 4;
     }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(8) == opposingPlayerMark) {
+    /**
+     * I??
+     * ?X?
+     * ??X
+     */
+    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(8) == markToBlock) {
       blockingPlay = 0;
     }
-    else if (gameBoard.charAt(2) == opposingPlayerMark && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
+    /**
+     * ??X
+     * ?X?
+     * I??
+     */
+    else if (gameBoard.charAt(2) == markToBlock && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
       blockingPlay = 6;
     }
-    else if (gameBoard.charAt(2) == opposingPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(6) == opposingPlayerMark) {
+    /**
+     * ??X
+     * ?I?
+     * X??
+     */
+    else if (gameBoard.charAt(2) == markToBlock && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(6) == markToBlock) {
       blockingPlay = 4;
     }
-    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(4) == opposingPlayerMark && gameBoard.charAt(6) == opposingPlayerMark) {
+    /**
+     * ??I
+     * ?X?
+     * X??
+     */
+    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(4) == markToBlock && gameBoard.charAt(6) == markToBlock) {
       blockingPlay = 2;
     }
     return blockingPlay;
@@ -463,82 +700,32 @@ public class TicTacToeEnv implements Environment, EnvironmentServerInterface {
    *
    * @return Zero-based index of cell that would win, or -1 if no cells apply
    */
-  private int evalGameboardForWin() {
-    int winningPlay = -1;
-    if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(1) == envPlayerMark && gameBoard.charAt(2) == TicTacToeState.EMPTY) {
-      winningPlay = 2;
-    }
-    else if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(2) == envPlayerMark) {
-      winningPlay = 1;
-    }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(1) == envPlayerMark && gameBoard.charAt(2) == envPlayerMark) {
-      winningPlay = 0;
-    }
-    else if (gameBoard.charAt(3) == envPlayerMark && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(5) == TicTacToeState.EMPTY) {
-      winningPlay = 5;
-    }
-    else if (gameBoard.charAt(3) == envPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(5) == envPlayerMark) {
-      winningPlay = 4;
-    }
-    else if (gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(5) == envPlayerMark) {
-      winningPlay = 3;
-    }
-    else if (gameBoard.charAt(6) == envPlayerMark && gameBoard.charAt(7) == envPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
-      winningPlay = 8;
-    }
-    else if (gameBoard.charAt(6) == envPlayerMark && gameBoard.charAt(7) == TicTacToeState.EMPTY && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 7;
-    }
-    else if (gameBoard.charAt(6) == TicTacToeState.EMPTY && gameBoard.charAt(7) == envPlayerMark && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 6;
-    }
-    else if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(3) == envPlayerMark && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
-      winningPlay = 6;
-    }
-    else if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(3) == TicTacToeState.EMPTY && gameBoard.charAt(6) == envPlayerMark) {
-      winningPlay = 3;
-    }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(3) == envPlayerMark && gameBoard.charAt(6) == envPlayerMark) {
-      winningPlay = 0;
-    }
-    else if (gameBoard.charAt(1) == envPlayerMark && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(7) == TicTacToeState.EMPTY) {
-      winningPlay = 7;
-    }
-    else if (gameBoard.charAt(1) == envPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(7) == envPlayerMark) {
-      winningPlay = 4;
-    }
-    else if (gameBoard.charAt(1) == TicTacToeState.EMPTY && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(7) == envPlayerMark) {
-      winningPlay = 1;
-    }
-    else if (gameBoard.charAt(2) == envPlayerMark && gameBoard.charAt(5) == envPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
-      winningPlay = 8;
-    }
-    else if (gameBoard.charAt(2) == envPlayerMark && gameBoard.charAt(5) == TicTacToeState.EMPTY && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 5;
-    }
-    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(5) == envPlayerMark && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 2;
-    }
-    else if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(8) == TicTacToeState.EMPTY) {
-      winningPlay = 8;
-    }
-    else if (gameBoard.charAt(0) == envPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 4;
-    }
-    else if (gameBoard.charAt(0) == TicTacToeState.EMPTY && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(8) == envPlayerMark) {
-      winningPlay = 0;
-    }
-    else if (gameBoard.charAt(2) == envPlayerMark && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(6) == TicTacToeState.EMPTY) {
-      winningPlay = 6;
-    }
-    else if (gameBoard.charAt(2) == envPlayerMark && gameBoard.charAt(4) == TicTacToeState.EMPTY && gameBoard.charAt(6) == envPlayerMark) {
-      winningPlay = 4;
-    }
-    else if (gameBoard.charAt(2) == TicTacToeState.EMPTY && gameBoard.charAt(4) == envPlayerMark && gameBoard.charAt(6) == envPlayerMark) {
-      winningPlay = 2;
-    }
-    return winningPlay;
+  private int evalGameboardForWin(char playerMark) {
+	return evalGameboardForBlock(playerMark);
   }
-
-
+  
+  public int indexForEnemyBlock() {
+	  return this.evalGameboardForBlock(opposingPlayerMark);
+  }
+  
+  public int indexForEnemyWin() {
+	  return this.evalGameboardForWin(envPlayerMark);
+  }
+  
+  public int[] emptyCellIndices() {
+	  return this.getEmptyGameboardIndices(false);
+  }
+  
+  public int[] emptyCornerAndCenterIndicies() {
+	  return this.getEmptyGameboardIndices(true);
+  }
+  
+  public String gameStatusForState(TicTacToeState state) {
+	  TicTacToeState curState = currentObservationState.copy();
+	  setState(state);
+	  String status = gameStatus;
+	  setState(curState);
+	  
+	  return status;
+  }
 }
